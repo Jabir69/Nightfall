@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NightFall — Real-Life GPS Manhunt</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#0a0e14;--card:#131a24;--text:#eef2f7;--m:#8d9bb0;--h:#ff5a4f;--g:#35e0b4;--ln:#223044;color-scheme:dark}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.w{max-width:560px;margin:0 auto;padding:0 14px 40px}
+nav{display:flex;justify-content:space-between;align-items:center;padding:14px 0;font-weight:800}
+h1{font-size:clamp(32px,9vw,48px);line-height:1.05;margin:10px 0}h1 em{color:var(--g);font-style:normal}
+.m{color:var(--m)}.c{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:14px;margin:12px 0}
+button{background:var(--g);color:#04120d;padding:11px 18px;border-radius:99px;font-weight:700;border:0;font-size:15px}
+button.o{background:none;color:var(--text);border:1px solid var(--ln)}button.r{background:var(--h);color:#fff}
+button:disabled{opacity:.4}
+input,select{width:100%;padding:10px 14px;border-radius:12px;border:1px solid var(--ln);background:var(--bg);color:var(--text);font-size:16px;margin:4px 0 8px}
+label{font-size:13px;color:var(--m)}.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}
+.g{color:var(--g);font-weight:700}.hh{color:var(--h);font-weight:700}
+.code{font:800 38px ui-monospace,monospace;letter-spacing:.2em;color:var(--g);text-align:center}
+.hud{display:flex;justify-content:space-between;font:700 13px ui-monospace,monospace;color:var(--m);gap:6px;flex-wrap:wrap}.hud b{color:var(--text)}
+#map{height:55vh;min-height:300px;border-radius:14px;margin:10px 0}
+.pl{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--ln)}
+.big{font-size:26px;font-weight:800;text-align:center;margin:8px 0}
+.lk{background:none;color:var(--g);padding:4px}
+</style>
+</head>
+<body>
+<div class="w">
+<nav><span>◐ NIGHTFALL</span><button class="lk" id="hb">History</button></nav>
+<p id="cfe" class="hh" hidden>Firebase isn’t set up yet — paste your settings at the top of the script.</p>
+
+<section id="home">
+ <h1>The city is your <em>arena.</em></h1>
+ <div class="c">
+  <button class="o" id="gb" style="width:100%">📍 Enable GPS</button>
+  <p class="m" id="gs" style="font-size:13px;margin:8px 0">Tap to turn on your location first.</p>
+  <input id="nm" placeholder="Your name" maxlength="14">
+  <input id="cd" placeholder="Room code (to join)" maxlength="5" style="text-transform:uppercase">
+  <div class="row"><button id="jn">Join room</button><button class="o" id="mk">Create room</button></div>
+  <p id="err" class="hh" style="margin:8px 0 0"></p>
+ </div>
+</section>
+
+<section id="lobTop" hidden>
+ <div class="c"><div class="m" style="text-align:center">Room code — share it</div><div class="code" id="lc"></div></div>
+ <div class="c" id="set">
+  <div class="row"><div><label>Mode</label><select id="s_mode"><option value="classic">Classic</option><option value="infection">Infection</option></select></div>
+  <div><label>Hunters (random)</label><input id="s_nh" type="number" min="1" value="1"></div></div>
+  <div class="row"><div><label>Ping every (min)</label><input id="s_ping" type="number" min="0.5" step="0.5" value="3"></div>
+  <div><label>Head start (min)</label><input id="s_head" type="number" min="0" step="0.5" value="2"></div></div>
+  <div class="row"><div><label>Match length (min)</label><input id="s_dur" type="number" min="3" value="30"></div>
+  <div><label>Zone shrinks to</label><select id="s_end"><option value="100">100% (no shrink)</option><option value="75">75%</option><option value="50">50%</option><option value="25" selected>25%</option><option value="10">10%</option></select></div></div>
+  <p class="m" id="sm" style="font-size:13px;margin:0"></p>
+ </div>
+ <div class="c" id="draw">
+  <b>Play area</b><p class="m" style="font-size:13px;margin:2px 0 8px">Tap the map to drop pillars (corners). 3 or more make an area.</p>
+  <div class="row"><button class="o" id="d_gps">+ Pillar at my GPS</button><button class="o" id="d_un">Undo</button><button class="o" id="d_cl">Clear</button></div>
+  <div class="row" style="margin-top:8px"><select id="d_r"><option value="100">Radius 100 m</option><option value="250">250 m</option><option value="500" selected>500 m</option><option value="1000">1 km</option><option value="2000">2 km</option><option value="5000">5 km</option></select><button class="o" id="d_ci">Circle at my GPS</button></div>
+ </div>
+</section>
+
+<section id="gameTop" hidden>
+ <div class="c"><div class="hud"><span>LEFT <b id="tl">–</b></span><span>PING <b id="pg">–</b></span><span>AREA <b id="zn">–</b></span><span id="rl"></span></div>
+ <div id="ev" class="m" style="min-height:22px;margin-top:6px"></div></div>
+</section>
+
+<div id="mapbox" hidden><div id="map"></div></div>
+
+<section id="lobBot" hidden>
+ <div class="c" id="plist"></div>
+ <button id="st" style="width:100%">Start match</button><p id="lm" class="hh"></p>
+</section>
+
+<section id="gameBot" hidden>
+ <div class="row"><button class="r" id="tag">I got tagged</button></div>
+ <p class="m" id="gps" style="font-size:13px"></p>
+</section>
+
+<section id="end" hidden><div class="c" id="endc"></div><button id="again" style="width:100%">Back to home</button></section>
+<section id="hist" hidden><div class="c" id="histc"></div><button class="o" id="hback" style="width:100%">Back</button></section>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* ===== PASTE YOUR FIREBASE SETTINGS HERE (step 3 of the setup) ===== */
+var FIREBASE_CONFIG = { apiKey:"AIzaSyC72U4kJpdmxKMibSrkxNYTz-HQSXUCEEk", authDomain:"nightfall-3a689.firebaseapp.com", projectId:"nightfall-3a689", storageBucket:"nightfall-3a689.firebasestorage.app", messagingSenderId:"1010549746188", appId:"1:1010549746188:web:c9a48a517ff24c84835c29" };
+/* ================================================================== */
+(function(){
+var $=function(i){return document.getElementById(i)};
+var S={uid:null,code:null,room:null,pl:{},me:null,pos:null,prev:null,dirty:false,last:-1,pings:{},ended:false,map:null,L:{},ml:{},started:false,gw:false,q:Promise.resolve()};
+var db=null;
+try{if(FIREBASE_CONFIG.apiKey!=='PASTE'){firebase.initializeApp(FIREBASE_CONFIG);db=firebase.firestore()}}catch(e){}
+if(!db)$('cfe').hidden=false;
+try{S.uid=localStorage.getItem('nf_uid')}catch(e){}
+if(!S.uid){S.uid='u'+Math.random().toString(36).slice(2,10);try{localStorage.setItem('nf_uid',S.uid)}catch(e){}}
+var ALL=['home','lobTop','mapbox','lobBot','gameTop','gameBot','end','hist'];
+function view(n){var m={home:['home'],lobby:['lobTop','mapbox','lobBot'],game:['gameTop','mapbox','gameBot'],end:['end'],hist:['hist']}[n];
+ ALL.forEach(function(x){$(x).hidden=m.indexOf(x)<0});if(S.map&&m.indexOf('mapbox')>=0)setTimeout(function(){S.map.invalidateSize()},50)}
+function err(t){$('err').textContent=t}
+function fmt(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+('0'+s%60).slice(-2)}
+function hav(a,b){var R=6371000,r=Math.PI/180,dl=(b.lat-a.lat)*r,dn=(b.lng-a.lng)*r,x=Math.sin(dl/2)*Math.sin(dl/2)+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dn/2)*Math.sin(dn/2);return 2*R*Math.asin(Math.sqrt(x))}
+function inPoly(p,P){var c=false;for(var i=0,j=P.length-1;i<P.length;j=i++){if((P[i].lat>p.lat)!==(P[j].lat>p.lat)&&p.lng<(P[j].lng-P[i].lng)*(p.lat-P[i].lat)/(P[j].lat-P[i].lat)+P[i].lng)c=!c}return c}
+function cen(P){var a=0,b=0;P.forEach(function(p){a+=p.lat;b+=p.lng});return{lat:a/P.length,lng:b/P.length}}
+function shrink(P,s){var c=cen(P);return P.map(function(p){return{lat:c.lat+(p.lat-c.lat)*s,lng:c.lng+(p.lng-c.lng)*s}})}
+function eff(p){if(p.role==='h')return'h';if(!p.tagged)return'g';return S.room.mode==='infection'?'h':'o'}
+function pid(k){var p=S.pl[k];p.id=k;return p}
+
+/* GPS */
+function onFix(p){var n={lat:p.coords.latitude,lng:p.coords.longitude};
+ if(S.prev&&S.room&&S.room.status==='live'&&S.me&&!S.me.tagged){var d=hav(S.prev,n);if(d>3&&d<80){S.me.dist+=d;S.prev=n}else if(d>=80){S.prev=n}}else if(!S.prev||!S.room||S.room.status!=='live')S.prev=n;
+ S.pos=n;if(S.me){S.me.lat=n.lat;S.me.lng=n.lng;S.dirty=true}
+ $('gs').textContent=$('gps').textContent='📍 GPS locked (±'+Math.round(p.coords.accuracy)+' m)';
+ if(S.map&&!S.cm){S.cm=1;S.map.setView([n.lat,n.lng],17)}}
+function onErr(e){$('gs').textContent=$('gps').textContent=e.code===1?'Location is blocked. Allow location for this site in your browser/phone settings, then tap Enable GPS.':e.code===2?'No position yet — turn on Location Services or go outside.':'GPS timed out — try again with a clear sky view.'}
+function gpsOn(){if(S.gw)return;if(!navigator.geolocation){onErr({code:2});return}
+ $('gs').textContent='Requesting location…';
+ navigator.geolocation.getCurrentPosition(function(p){S.gw=true;onFix(p);navigator.geolocation.watchPosition(onFix,onErr,{enableHighAccuracy:true,maximumAge:1000,timeout:20000})},onErr,{enableHighAccuracy:true,timeout:20000});
+ try{navigator.wakeLock&&navigator.wakeLock.request('screen')}catch(e){}}
+$('gb').onclick=gpsOn;
+
+/* join / create */
+async function enter(code,create){
+ if(!db){err('Add your Firebase settings first.');return}
+ code=(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(code.length<3){err('Enter a room code.');return}
+ try{
+  var rr=db.doc('rooms/'+code),s=await rr.get();
+  if(create){if(s.exists){err('Code taken — try again.');return}
+   await rr.set({host:S.uid,status:'lobby',mode:'infection',nh:1,ping:3,head:2,dur:30,end:25,poly:[],created:Date.now()})}
+  else if(!s.exists){err('No room with that code.');return}
+  S.code=code;var pr=rr.collection('players').doc(S.uid),ps=await pr.get();
+  S.me={name:$('nm').value.trim()||'Player',lat:S.pos?S.pos.lat:null,lng:S.pos?S.pos.lng:null,dist:0,tagged:false,tagAt:null};
+  if(ps.exists){var d=ps.data();S.me.dist=d.dist||0;S.me.tagged=!!d.tagged;S.me.tagAt=d.tagAt||null}
+  await pr.set(Object.assign({},S.me,ps.exists?{}:{role:'g'}),{merge:true});
+  rr.onSnapshot(function(d){S.room=d.exists?d.data():null;onRoom()});
+  rr.collection('players').onSnapshot(function(q){S.pl={};q.docs.forEach(function(d){S.pl[d.id]=d.data()});onRoom()});
+  initMap();view('lobby');gpsOn();setInterval(tick,1000);setInterval(flush,4000);
+ }catch(e){err('Could not connect — check your Firebase setup.')}
+}
+$('jn').onclick=function(){enter($('cd').value,false)};
+$('mk').onclick=function(){var c='';for(var i=0;i<5;i++)c+='ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)];enter(c,true)};
+function flush(){if(!S.dirty||!S.me)return;S.dirty=false;
+ S.q=S.q.then(function(){return db.doc('rooms/'+S.code+'/players/'+S.uid).set({name:S.me.name,lat:S.me.lat,lng:S.me.lng,dist:S.me.dist,tagged:S.me.tagged,tagAt:S.me.tagAt},{merge:true})}).catch(function(){})}
+
+/* map */
+function initMap(){if(S.map)return;
+ S.map=L.map('map').setView(S.pos?[S.pos.lat,S.pos.lng]:[20,0],S.pos?17:2);
+ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(S.map);
+ S.map.on('click',function(e){if(!isHost()||S.room.status!=='lobby')return;setPoly((S.room.poly||[]).concat([{lat:e.latlng.lat,lng:e.latlng.lng}]))})}
+function isHost(){return S.room&&S.room.host===S.uid}
+function setPoly(P){db.doc('rooms/'+S.code).update({poly:P})}
+$('d_gps').onclick=function(){if(S.pos)setPoly((S.room.poly||[]).concat([{lat:S.pos.lat,lng:S.pos.lng}]))};
+$('d_un').onclick=function(){setPoly((S.room.poly||[]).slice(0,-1))};
+$('d_cl').onclick=function(){setPoly([])};
+$('d_ci').onclick=function(){if(!S.pos)return;var r=+$('d_r').value,P=[];for(var i=0;i<24;i++){var a=i*Math.PI/12;P.push({lat:S.pos.lat+Math.sin(a)*r/111000,lng:S.pos.lng+Math.cos(a)*r/(111000*Math.cos(S.pos.lat*Math.PI/180))})}setPoly(P)};
+['s_mode','s_nh','s_ping','s_head','s_dur','s_end'].forEach(function(id){$(id).onchange=function(){if(!isHost())return;
+ db.doc('rooms/'+S.code).update({mode:$('s_mode').value,nh:+$('s_nh').value||1,ping:+$('s_ping').value||3,head:+$('s_head').value||0,dur:+$('s_dur').value||30,end:+$('s_end').value})}});
+function drawPoly(P,col){if(S.L.poly)S.map.removeLayer(S.L.poly);S.L.poly=null;
+ if(S.L.pil){S.L.pil.forEach(function(m){S.map.removeLayer(m)})}S.L.pil=[];
+ if(P&&P.length>=3)S.L.poly=L.polygon(P.map(function(p){return[p.lat,p.lng]}),{color:col,weight:3,fillOpacity:.08}).addTo(S.map);
+ if(S.room.status==='lobby')(P||[]).forEach(function(p,i){S.L.pil.push(L.circleMarker([p.lat,p.lng],{radius:7,color:'#fff',fillColor:'#ff5a4f',fillOpacity:1}).addTo(S.map).bindTooltip(String(i+1),{permanent:true,direction:'top'}))})}
+
+/* room updates */
+function onRoom(){var r=S.room;if(!r||!S.map)return;
+ if(r.status==='lobby'){view('lobby');S.started=false;S.ended=false;
+  $('lc').textContent=S.code;var h=isHost();
+  ['s_mode','s_nh','s_ping','s_head','s_dur','s_end'].forEach(function(id){$(id).disabled=!h});
+  $('s_mode').value=r.mode;$('s_nh').value=r.nh;$('s_ping').value=r.ping;$('s_head').value=r.head;$('s_dur').value=r.dur;$('s_end').value=r.end;
+  $('draw').hidden=!h;$('st').hidden=!h;$('sm').textContent=h?'':'Only the host can change settings.';
+  $('plist').innerHTML=Object.keys(S.pl).map(function(k){return'<div class="pl"><span>'+esc(S.pl[k].name)+(k===S.uid?' (you)':'')+'</span></div>'}).join('');
+  drawPoly(r.poly,'#ff5a4f');
+ }else if(r.status==='live'&&!S.started&&!S.ended){S.started=true;S.last=-1;S.pings={};S.ended=false;
+  if(S.me){S.me.dist=0;S.me.tagged=false;S.me.tagAt=null;S.prev=S.pos}
+  view('game');if(r.poly.length>=3)S.map.fitBounds(r.poly.map(function(p){return[p.lat,p.lng]}))}
+}
+function esc(t){var d=document.createElement('div');d.textContent=t;return d.innerHTML}
+$('st').onclick=async function(){
+ var r=S.room,ks=Object.keys(S.pl);
+ if(!r.poly||r.poly.length<3){$('lm').textContent='Drop at least 3 pillars first.';return}
+ if(ks.length<2||r.nh>=ks.length){$('lm').textContent='Need more players than hunters.';return}
+ ks.sort(function(){return Math.random()-.5});var b=db.batch();
+ ks.forEach(function(k,i){b.set(db.doc('rooms/'+S.code+'/players/'+k),{role:i<r.nh?'h':'g',tagged:false,tagAt:null,dist:0},{merge:true})});
+ await b.commit();await db.doc('rooms/'+S.code).update({status:'live',startAt:Date.now()});
+};
+$('tag').onclick=function(){if(!S.me)return;S.me.tagged=true;S.me.tagAt=Date.now();S.dirty=true;flush();$('ev').textContent=S.room.mode==='infection'?'You’re a Hunter now.':'You’re out.'};
+
+/* game loop */
+function tick(){var r=S.room;if(!r||r.status!=='live'||!S.started||S.ended||!S.me)return;
+ var el=(Date.now()-r.startAt)/1000,head=r.head*60,tot=r.dur*60,pg=r.ping*60;
+ var sc=el<=head?1:1-(1-r.end/100)*Math.min(1,(el-head)/Math.max(1,tot-head));
+ var P=shrink(r.poly,sc),ps=Object.keys(S.pl).map(pid);
+ var me=S.pl[S.uid]||{},myRole=me.role==='h'?'h':eff(Object.assign({},me,{tagged:S.me.tagged,role:me.role||'g'}));
+ var alive=ps.filter(function(p){return p.role==='g'&&!p.tagged});
+ $('tl').textContent=fmt(tot-el);$('zn').textContent=Math.round(sc*100)+'%';
+ $('rl').innerHTML='<b class="'+(myRole==='g'?'g':'hh')+'">'+(myRole==='g'?'RUNNER':myRole==='h'?'HUNTER':'OUT')+'</b>';
+ $('tag').hidden=myRole!=='g';
+ if(el<head)$('pg').textContent='in '+fmt(head-el);else{var idx=Math.floor((el-head)/pg);$('pg').textContent=fmt(head+(idx+1)*pg-el);
+  if(idx!==S.last){S.last=idx;S.pings={};alive.forEach(function(g){if(g.lat!=null)S.pings[g.id]={lat:g.lat,lng:g.lng}});$('ev').textContent=myRole==='h'?'📍 Ping! Runner locations updated.':'📍 A ping just went out.'}}
+ drawPoly(P,'#ff5a4f');
+ var seen={};function mk(id,pos,col,rad,ring){seen[id]=1;if(S.ml[id])S.ml[id].setLatLng([pos.lat,pos.lng]).setStyle({color:ring||col,fillColor:col});else S.ml[id]=L.circleMarker([pos.lat,pos.lng],{radius:rad,color:ring||col,fillColor:col,fillOpacity:1,weight:3}).addTo(S.map)}
+ ps.forEach(function(p){if(p.id===S.uid||p.lat==null)return;var e=eff(p);
+  if(myRole==='o'){mk(p.id,p,e==='g'?'#35e0b4':'#ff5a4f',6);return}
+  if(myRole==='h'){if(e==='h')mk(p.id,p,'#ff5a4f',6)}
+  else{if(e==='g')mk(p.id,p,'#35e0b4',6);else if(S.me.lat!=null&&hav(S.me,p)<100)mk(p.id,p,'#ff5a4f',6)}});
+ if(myRole==='h')Object.keys(S.pings).forEach(function(k){if(k!==S.uid)mk('p'+k,S.pings[k],'#35e0b4',9,'#fff')});
+ if(S.me.lat!=null)mk('me',S.me,myRole==='g'?'#35e0b4':'#ff5a4f',8,'#fff');
+ Object.keys(S.ml).forEach(function(k){if(!seen[k]){S.map.removeLayer(S.ml[k]);delete S.ml[k]}});
+ if(S.me.lat!=null&&el>head&&!inPoly(S.me,P)){$('ev').textContent='⚠️ You’re outside the area!';try{navigator.vibrate(200)}catch(e){}}
+ if(el>=tot||(ps.some(function(p){return p.role==='g'})&&!alive.length&&el>5))finish(ps,el,tot,alive.length>0&&el>=tot);
+}
+function finish(ps,el,tot,runnersWin){S.ended=true;S.started=false;
+ Object.keys(S.ml).forEach(function(k){S.map.removeLayer(S.ml[k])});S.ml={};
+ var T=Math.min(el,tot),caught=ps.filter(function(p){return p.role==='g'&&p.tagged}).length,nh=ps.filter(function(p){return p.role==='h'}).length||1;
+ var rows=ps.map(function(p){var sv=p.role==='g'?((p.tagged&&p.tagAt?(p.tagAt-S.room.startAt)/1000:T)):0;
+  var sc=(p.dist||0)/100+(p.role==='g'?sv/60*5:caught*10/nh);return{n:p.name,d:p.dist||0,sv:sv,s:sc,r:p.role}}).sort(function(a,b){return b.s-a.s});
+ var far=ps.slice().sort(function(a,b){return(b.dist||0)-(a.dist||0)})[0];
+ var h='<div class="big" style="color:'+(runnersWin?'var(--g)':'var(--h)')+'">'+(runnersWin?'👻 Runners win!':'🔦 Hunters win!')+'</div>'+
+ '<p>🏃 <b>Ran the most:</b> '+esc(far.name)+' ('+((far.dist||0)/1000).toFixed(2)+' km)</p><p>⭐ <b>Best player:</b> '+esc(rows[0].n)+'</p>'+
+ rows.map(function(x,i){return'<div class="pl"><span>'+(i+1)+'. '+esc(x.n)+' <span class="m">'+(x.r==='g'?'runner':'hunter')+'</span></span><span class="m">'+(x.d/1000).toFixed(2)+' km'+(x.r==='g'?' · '+fmt(x.sv):'')+'</span></div>'}).join('');
+ $('endc').innerHTML=h;
+ try{var H=JSON.parse(localStorage.getItem('nf_h')||'[]');H.unshift({code:S.code,mode:S.room.mode,at:S.room.startAt,win:runnersWin?'Runners':'Hunters',far:far.name,best:rows[0].n,n:ps.length});localStorage.setItem('nf_h',JSON.stringify(H.slice(0,50)))}catch(e){}
+ view('end');
+}
+$('again').onclick=function(){location.reload()};
+$('hb').onclick=function(){var H=[];try{H=JSON.parse(localStorage.getItem('nf_h')||'[]')}catch(e){}
+ $('histc').innerHTML=H.length?H.map(function(g){return'<div class="pl"><span>'+new Date(g.at).toLocaleDateString()+' · '+g.mode+' · '+g.n+' players<br><span class="m">Best: '+esc(g.best)+' · Ran most: '+esc(g.far)+'</span></span><span class="'+(g.win==='Runners'?'g':'hh')+'">'+g.win+'</span></div>'}).join(''):'<p class="m">No games yet.</p>';view('hist')};
+$('hback').onclick=function(){location.reload()};
+})();
+</script>
+</body>
+</html>
